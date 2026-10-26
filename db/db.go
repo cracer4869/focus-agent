@@ -306,6 +306,15 @@ ON CONFLICT (name) DO NOTHING`,
 	if err := d.seedDefaultInterceptRulesV7(); err != nil {
 		return fmt.Errorf("seed intercept rules v7: %w", err)
 	}
+	if err := d.seedDefaultInterceptRulesV8(); err != nil {
+		return fmt.Errorf("seed intercept rules v8: %w", err)
+	}
+	if err := d.seedDefaultInterceptRulesV9(); err != nil {
+		return fmt.Errorf("seed intercept rules v9: %w", err)
+	}
+	if err := d.seedDefaultInterceptRulesV10(); err != nil {
+		return fmt.Errorf("seed intercept rules v10: %w", err)
+	}
 	return nil
 }
 
@@ -640,29 +649,45 @@ const lateralHint = "横向移动/口令喷洒属高动静动作(可锁死账号
 // 取舍说明:hashcat 不列入——它是本地破密工具,只有命令行同时出现目标 host 才该
 // 拦,而「任意 hashcat 参数里含 IP/域名」用正则表达会大量误伤本地破解场景
 // (字典/掩码路径常含点分数字),宁可不列、在工具与提示侧约束,也不做半吊子拦截。
+//
+// 锚定说明(v8 起):这批规则原本是裸 `\b词\b`,对整条命令文本做全词匹配。worker
+// 盘点工具可用性时执行 `which ... hydra ...` 会被命中并转人工审批——实测任务卡住
+// 2.5 分钟直到手动放行。改为与隧道二进制规则(见 builtinTunnelBinaryRules)同一套
+// 写法:要么出现在命令起始位置(行首 / `;` `&&` `||` `|` `(` 之后、可带路径前缀、
+// 可带 sudo),要么词后紧跟参数(`-x` / `/x`)。`which`/`command -v`/`for t in ...`
+// 这类纯枚举不再命中,真实调用一律命中。
 var builtinLateralRules = []struct {
 	name    string
 	pattern string
 }{
 	{
 		name:    "[内置] 口令喷洒/爆破: crackmapexec/nxc",
-		pattern: `(?i)\b(?:crackmapexec|cme|nxc|netexec)\b`,
+		pattern: `(?i)(?:^|[|;&(]\s*|&&\s*|\|\|\s*|sudo\s+)(?:\S*/)?(?:crackmapexec|cme|nxc|netexec)\b|\b(?:crackmapexec|cme|nxc|netexec)\b\s+-{1,2}[A-Za-z]`,
 	},
 	{
 		name:    "[内置] 口令喷洒/爆破: hydra",
-		pattern: `(?i)\bhydra\b`,
+		pattern: `(?i)(?:^|[|;&(]\s*|&&\s*|\|\|\s*|sudo\s+)(?:\S*/)?hydra\b|\bhydra\b\s+-{1,2}[A-Za-z]`,
 	},
 	{
 		name:    "[内置] 口令喷洒/爆破: medusa",
-		pattern: `(?i)\bmedusa\b`,
+		pattern: `(?i)(?:^|[|;&(]\s*|&&\s*|\|\|\s*|sudo\s+)(?:\S*/)?medusa\b|\bmedusa\b\s+-{1,2}[A-Za-z]`,
 	},
 	{
+		// v10:psexec 系的调用形态比其它工具更宽,锚定写法单靠「起始位置 + 短选项」
+		// 会漏掉两种真实打法(上游测试 intercept_rules_v4_test.go 已断言它们应命中):
+		//   - `python3 psexec.py administrator@10.0.0.5`(工具名不在起始位置,
+		//     后跟的目标是 user@host 而不是选项)
+		//   - `impacket-wmiexec CORP/administrator@10.0.0.5`(Kali 装的入口是
+		//     `impacket-<tool>` 前缀,`(?:\S*/)?` 只吃路径前缀,吃不下这段)
+		// 因此保留起始位置分支,另补 impacket- 前缀、python3 X.py、裸调用后跟
+		// 「选项 / user@host / IP」三条。`cat psexec.py`、`ls .../examples/`、
+		// `which psexec.py` 这类枚举与查看仍不命中。
 		name:    "[内置] 横向执行: psexec/wmiexec/smbexec",
-		pattern: `(?i)\b(?:psexec|wmiexec|smbexec|atexec|dcomexec)(?:\.py)?\b`,
+		pattern: `(?i)(?:^|[|;&(]\s*|&&\s*|\|\|\s*|sudo\s+)(?:\S*/)?(?:psexec|wmiexec|smbexec|atexec|dcomexec)(?:\.py)?\b|\bimpacket-(?:psexec|wmiexec|smbexec|atexec|dcomexec)\b|\bpython[0-9.]*\s+(?:\S*/)?(?:psexec|wmiexec|smbexec|atexec|dcomexec)\.py\b|\b(?:psexec|wmiexec|smbexec|atexec|dcomexec)(?:\.py)?\b\s+(?:-\S+|\S+@\S+|\d{1,3}(?:\.\d{1,3}){3})`,
 	},
 	{
 		name:    "[内置] 域 Kerberos 枚举/喷洒: kerbrute",
-		pattern: `(?i)\bkerbrute\b`,
+		pattern: `(?i)(?:^|[|;&(]\s*|&&\s*|\|\|\s*|sudo\s+)(?:\S*/)?kerbrute\b|\bkerbrute\b\s+-{1,2}[A-Za-z]`,
 	},
 }
 
@@ -769,6 +794,87 @@ ON CONFLICT DO NOTHING`,
 		}
 	}
 	return d.SetSetting("intercept_default_rules_v7", "done")
+}
+
+// seedDefaultInterceptRulesV8 把 V4 那批「横向移动/口令喷洒」底线规则的 pattern
+// 从裸 `\b词\b` 收紧为锚定写法(见 builtinLateralRules 的锚定说明)。
+//
+// 起因:实测 worker 执行 `which whatweb nikto ... hydra ... sqlmap ...` 盘点工具
+// 可用性时,被「[内置] 口令喷洒/爆破: hydra」命中并转人工审批,任务卡住 2.5 分钟。
+// 这类纯枚举命令不该触发高动静动作审批——它连目标都没有。收紧后:`which` /
+// `command -v` / `for t in ...` 不命中,`hydra -l ...`、`cd /tmp && hydra ...`、
+// `/usr/bin/hydra ...`、`sudo hydra ...`、`impacket-psexec -h` 一律照旧命中。
+func (d *DB) seedDefaultInterceptRulesV8() error {
+	if v, _, _ := d.GetSetting("intercept_default_rules_v8"); v == "done" {
+		return nil
+	}
+	for _, r := range builtinLateralRules {
+		res, err := d.Exec(`
+UPDATE intercept_rules SET pattern=$2
+WHERE name=$1 AND builtin=true`, r.name, r.pattern)
+		if err != nil {
+			return fmt.Errorf("rule %q: %w", r.name, err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			if _, err := d.Exec(`
+INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
+VALUES ($1, true, 86, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+ON CONFLICT DO NOTHING`,
+				r.name, r.pattern, lateralHint); err != nil {
+				return fmt.Errorf("rule %q: %w", r.name, err)
+			}
+		}
+	}
+	return d.SetSetting("intercept_default_rules_v8", "done")
+}
+
+// seedDefaultInterceptRulesV9 重放 V8 那批规则的 pattern。
+//
+// 两处修正(实测驱动):
+//  1. V8 的第二分支是「词后跟 [-/]」,把 `ls /usr/bin/kerbrute /usr/local/bin/kerbrute`
+//     这种路径参数也当成调用了——worker 盘点工具时被误拦,任务卡在审批。
+//     收紧为「词后跟短选项 -x/--xx」,路径参数不再算调用。
+//  2. 配套修掉匹配主体:ruleMatches 对 shell 类工具改为匹配解包后的命令原文
+//     (见 intercept.toolInputSubject)。此前匹配的是 `{"command":"..."}` 整串,
+//     规则里以命令位置为前提的锚点全部失效。
+func (d *DB) seedDefaultInterceptRulesV9() error {
+	if v, _, _ := d.GetSetting("intercept_default_rules_v9"); v == "done" {
+		return nil
+	}
+	for _, r := range builtinLateralRules {
+		if _, err := d.Exec(`
+UPDATE intercept_rules SET pattern=$2
+WHERE name=$1 AND builtin=true`, r.name, r.pattern); err != nil {
+			return fmt.Errorf("rule %q: %w", r.name, err)
+		}
+	}
+	return d.SetSetting("intercept_default_rules_v9", "done")
+}
+
+// seedDefaultInterceptRulesV10 重放 V9 那批规则的 pattern(psexec 系补召回)。
+//
+// 起因:V9 为了消除 `which ... hydra ...` 误拦,把规则收紧成「命令起始位置」或
+// 「词后跟短选项」两种分支。收紧是对的,但 psexec 系的两条真实打法被一起切掉了:
+//
+//	python3 psexec.py administrator@10.0.0.5     ← 工具名不在行首,目标不是选项
+//	impacket-wmiexec CORP/administrator@10.0.0.5 ← Kali 的入口名带 impacket- 前缀
+//
+// 这两条正是 `go test ./db/` 里 TestBuiltinLateralRulePatterns 断言必须命中的
+// 用例——V9 之后该测试 FAIL,说明防护被削弱而不只是"少了个噪音"。V10 只给
+// psexec 系补上 impacket- 前缀 / python3 X.py / 裸调用后跟「选项或 user@host 或
+// IP」三条分支,其余四条规则(pattern 未被 V9 削弱的范围外)保持 V9 原样。
+func (d *DB) seedDefaultInterceptRulesV10() error {
+	if v, _, _ := d.GetSetting("intercept_default_rules_v10"); v == "done" {
+		return nil
+	}
+	for _, r := range builtinLateralRules {
+		if _, err := d.Exec(`
+UPDATE intercept_rules SET pattern=$2
+WHERE name=$1 AND builtin=true`, r.name, r.pattern); err != nil {
+			return fmt.Errorf("rule %q: %w", r.name, err)
+		}
+	}
+	return d.SetSetting("intercept_default_rules_v10", "done")
 }
 
 // seedDefaultInterceptRulesV4 拦「横向移动/口令喷洒类工具」(内网期 2):worker 直接

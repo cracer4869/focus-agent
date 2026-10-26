@@ -12,7 +12,14 @@ import (
 
 // Repo 是发布源。写死而不是做成配置项：更新源可配等于给任何能改配置的人一条
 // 远程代码执行通道，对一个渗透测试平台来说这个口子开不得。
-const Repo = "Autumn-27/artex"
+//
+// 本部署改动（focus-agent 二开）：发布源从上游 Autumn-27/artex 改为本 fork。
+// 原因：指向上游时页面「一键更新」会拉上游 ARTEX 的 release 覆盖当前二进制，
+// 等于静默回滚掉本 fork 的全部改动（minisign + SHA256SUMS 双校验能拦住被篡改的
+// 包，但拦不住「版本号更新、内容变回上游」这种语义错配）。改指 fork 后，本仓库
+// 未发布正式版，检查会得到「尚未发布任何正式版本」，一键更新自然失效；即使将来
+// 发布了 release，签名公钥仍是上游那把（minisign.go），验签会失败，仍然装不上。
+const Repo = "XXXXXQ-0206/focus-agent"
 
 // latestURL 是 GitHub 的"最新正式版"接口。它会自动跳过 prerelease 和 draft。
 const latestURL = "https://api.github.com/repos/" + Repo + "/releases/latest"

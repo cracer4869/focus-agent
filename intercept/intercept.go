@@ -558,7 +558,7 @@ func ruleMatches(r compiledRule, toolName string, input []byte) bool {
 	case "tool_name":
 		subject = toolName
 	case "tool_input":
-		subject = string(input)
+		subject = toolInputSubject(input)
 	default:
 		return false
 	}
@@ -566,6 +566,35 @@ func ruleMatches(r compiledRule, toolName string, input []byte) bool {
 		return r.re != nil && r.re.MatchString(subject)
 	}
 	return strings.Contains(subject, r.Pattern)
+}
+
+// toolInputSubject 决定 tool_input 规则到底匹配哪段文本。
+//
+// 对 shell 类工具(Bash / shell_open / shell_send)匹配【解包后的命令原文】,而不是
+// 原始 JSON。原始实现直接拿 `{"command":"..."}` 整串去匹配,带来两个后果:
+//
+//  1. 规则里所有以命令位置为前提的锚点(`^`、`;`/`&&`/`|` 之后)全部失效——JSON 让
+//     命令首词前面永远挂着 `{"command":"`,于是「裸用隧道工具」这类内置规则对
+//     `chisel server -p 8080` 这种首词调用根本不生效。
+//  2. 反向的误伤:锚定式规则被 JSON 里的结构字符意外满足,或关键词规则命中只做
+//     枚举的命令(实测 `which ... hydra ...` 被转人工审批)。
+//
+// 其余工具(WebFetch 等)没有 command 字段,保持原样匹配 JSON——它们的规则本来就
+// 是针对 JSON 字段写的(url 等)。
+func toolInputSubject(input []byte) string {
+	var in struct {
+		Command string `json:"command"`
+		Text    string `json:"text"` // shell_send 的输入文本
+	}
+	if err := json.Unmarshal(input, &in); err == nil {
+		if in.Command != "" {
+			return in.Command
+		}
+		if in.Text != "" {
+			return in.Text
+		}
+	}
+	return string(input)
 }
 
 func defaultMessage(action, name string) string {

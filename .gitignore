@@ -81,3 +81,16 @@ Thumbs.db
 # 运行时杂项
 /ligolo-ng.yaml
 /.sock.lock
+
+# ---- 本机部署的运维文件（含明文口令与主机路径，禁止进公开仓库）----
+# artex.env：回连地址/工具路径；focus-backup.sh：内嵌 PG 口令；
+# LOCAL-DEPLOY.md：记录管理员口令与库口令。三者都是本机私有。
+/artex.env
+/LOCAL-DEPLOY.md
+/focus.sh
+/desktop-start.sh
+/focus-backup.sh
+# 运行时日志（logrotate copytruncate 就地轮转，轮转产物带序号）
+/artex.log
+/artex.log.*
+

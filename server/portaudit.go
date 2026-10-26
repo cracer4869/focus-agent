@@ -53,14 +53,25 @@ type listenSock struct {
 
 // startPortAudit 参照 startLLMRecordsRetention 的模式:启动即扫一次,之后每 5 分钟。
 // 仅 Linux(/proc/net/tcp{,6}),其它平台直接跳过。
+//
+// 去重说明:早期实现每轮把「所有台账外监听」原样打一遍,本机实测 15 小时就攒了
+// 762 行同类 WARN(淹没真实告警)。改为只在「该监听首次出现」时打印一次,消失后从
+// 集合移除——同一个遗忘服务不会反复刷屏,但重新出现仍会再报一次。
 func (m *Manager) startPortAudit() {
 	if runtime.GOOS != "linux" {
 		return
 	}
+	reported := map[string]bool{}
 	audit := func() {
+		current := map[string]bool{}
 		for _, w := range scanUnmanagedListeners() {
+			current[w] = true
+			if reported[w] {
+				continue
+			}
 			log.Printf("[portaudit] WARN 台账外监听者: %s (非 loopback,不在平台端口台账;若为遗忘的临时服务请处置)", w)
 		}
+		reported = current
 	}
 	audit()
 	go func() {
