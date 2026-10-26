@@ -1,15 +1,16 @@
 {
-  "_comment": "ARTEX 外部工具钉版清单（期 6 部署链加固）。path 相对 data 目录；env 为可选的路径覆盖环境变量（与运行时的解析顺序一致：env 优先）。sha256 空串 = 未钉（宁可留空也不编造），启动与 artex doctor 只校验非空的；哈希不匹配只警告不阻断（用户可能自编译）。已钉的哈希来自 2026-09 linux/amd64 实际部署的二进制；换版本时同步更新。impacket/nxc/pypykatz 是 Python venv 工具，部署时用符号链接指到 venv 入口（如 tools/nxc -> postx-venv/bin/nxc），impacket 条目链接到 venv bin 目录（目录条目只查存在性）。",
+  "_comment": "ARTEX 外部工具钉版清单（期 6 部署链加固）。path 相对 data 目录；env 为可选的路径覆盖环境变量（与运行时的解析顺序一致：env 优先）。sha256 空串 = 未钉（宁可留空也不编造），启动与 artex doctor 只校验非空的；哈希不匹配只警告不阻断（用户可能自编译）。已钉的哈希来自 2026-10-26 linux/amd64 本机实际部署的二进制（逐文件重算）；换版本时同步更新。source 字段标注真身来源（kali-pkg=系统包软链、github-release=独立二进制、local-dir=目录条目）。impacket/nxc/pypykatz 是 Python venv 工具，部署时用符号链接指到 venv 入口（如 tools/nxc -> postx-venv/bin/nxc），impacket 条目链接到 venv bin 目录（目录条目只查存在性）。",
   "tools": [
     {
       "name": "suo5",
       "purpose": "HTTP 隧道 CLI：目标无出网时经 webshell payload 建 socks5",
-      "version": "",
+      "version": "v2.2.0",
       "platform": "linux/amd64",
       "sha256": "629dc3e537d611e2da7e5e0274900213e817d4057b344e6cb82bd95dee937d3b",
       "path": "tools/suo5",
       "env": "ARTEX_SUO5_PATH",
-      "category": "tunnel"
+      "category": "tunnel",
+      "source": "github-release"
     },
     {
       "name": "suo5-payloads",
@@ -19,17 +20,19 @@
       "sha256": "",
       "path": "tools/suo5-payloads",
       "env": "ARTEX_SUO5_PAYLOADS_DIR",
-      "category": "tunnel"
+      "category": "tunnel",
+      "source": "local-dir"
     },
     {
       "name": "chisel",
       "purpose": "反向 TCP 隧道：目标能出网时建反向 socks5 / 单端口转发",
-      "version": "",
+      "version": "1.12.1-0kali2",
       "platform": "linux/amd64",
-      "sha256": "b84450974bd3f1fc5dc09ec0edeec50647df81716e305ef391c9115c751aab17",
+      "sha256": "039c18e9f936d5f8608a22a05f5964da5f64c9c1edc8441282b373414aa4a269",
       "path": "tools/chisel",
       "env": "ARTEX_CHISEL_PATH",
-      "category": "tunnel"
+      "category": "tunnel",
+      "source": "kali-pkg"
     },
     {
       "name": "gogo",
@@ -39,17 +42,19 @@
       "sha256": "3b51080a909023f7d484e2443740b572307ce0054eb9e32d98f0a06bfcd2db90",
       "path": "tools/gogo",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "naabu",
       "purpose": "快速端口扫描（projectdiscovery）",
       "version": "",
       "platform": "linux/amd64",
-      "sha256": "6c0aac4253aebe95bbc13d4712a5f8caf7db9c9b62d6bc1fb4c56594cfa45165",
+      "sha256": "a14704426e6aa00e0924b81fbc7c93257658b33b9996842181aaf28d20acb1ef",
       "path": "tools/naabu",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "kali-pkg"
     },
     {
       "name": "httpx",
@@ -59,27 +64,30 @@
       "sha256": "6d78b83b4da452a7e0bd3613c4fae04cbf523209f083904b563f4d4406a680b0",
       "path": "tools/httpx",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "katana",
       "purpose": "Web 爬虫与端点发现（projectdiscovery）",
       "version": "",
       "platform": "linux/amd64",
-      "sha256": "2dd9024907d656235409dea7aac18d3cdd88f8a8da332494113a69bff4c295d6",
+      "sha256": "3214c11a0548667b37ec17bbb691706b7e0de1f0f24b3ead2ee12c301ebc1bbc",
       "path": "tools/katana",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "fscan",
       "purpose": "内网综合扫描：端口/服务/弱口令一把梭",
       "version": "",
       "platform": "linux/amd64",
-      "sha256": "b811e80f18b900458a264df5eab5b8515e48a50ca06810722fbb823aa109e76b",
+      "sha256": "e5c645434b4fb3b9bfa8d7402e2e6e80189c9ec9533ebdc8620aaace686cd84c",
       "path": "tools/fscan",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "impacket",
@@ -89,27 +97,30 @@
       "sha256": "",
       "path": "tools/impacket",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "local-dir"
     },
     {
       "name": "mimikatz",
       "purpose": "Windows 凭据提取（目标侧投递执行）",
       "version": "",
       "platform": "windows/amd64",
-      "sha256": "61c0810a23580cf492a6ba4f7654566108331e7a4134c968c2d6a05261b2d8a1",
+      "sha256": "61d391875b45c25a955101acc6d1df171e094291cc2b2be8ab49111689237eed",
       "path": "tools/mimikatz.exe",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "kali-pkg"
     },
     {
       "name": "pypykatz",
       "purpose": "Python 版 Windows 凭据提取（离线解析 LSASS dump；venv 入口符号链接）",
       "version": "",
       "platform": "linux/amd64",
-      "sha256": "0731985baf74e712365dccefc3b164f69df655db1a8ef7a02464ca776a2c8eef",
+      "sha256": "bd202d5e3f62bec0ff3a6634a898837cfdc8e954cb5de1ac702ef6b9a23230a8",
       "path": "tools/pypykatz",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "kali-pkg"
     },
     {
       "name": "laZagne",
@@ -119,27 +130,30 @@
       "sha256": "dc06d62ee95062e714f2566c95b8edaabfd387023b1bf98a09078b84007d5268",
       "path": "tools/laZagne.exe",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "ligolo-agent",
       "purpose": "ligolo-ng 反向隧道 agent（目标侧运行，TUN 组网）",
-      "version": "",
+      "version": "0.9.2",
       "platform": "linux/amd64",
-      "sha256": "6cd8afcfe41d4ea405b51f73bbd9e9088f0e8c3ae1bd2a2faf377aeca1de52d6",
+      "sha256": "df59f9263a075dd869819e2e54dccec3a4417d213af12df8c82859eb57d73048",
       "path": "tools/ligolo-agent",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "ligolo-proxy",
       "purpose": "ligolo-ng 反向隧道 proxy（攻击机侧运行，TUN 组网）",
-      "version": "",
+      "version": "0.9.2",
       "platform": "linux/amd64",
-      "sha256": "df5e9be9a9156f11401928f2b5cb64b6abea2958dd61b8c249846a965849250c",
+      "sha256": "76b0cc73d9928d11b71bb6153e70b810384853335095629aad0486ddcefeda00",
       "path": "tools/ligolo-proxy",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     },
     {
       "name": "peass",
@@ -149,27 +163,30 @@
       "sha256": "",
       "path": "tools/peass",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "local-dir"
     },
     {
       "name": "nxc",
       "purpose": "NetExec：SMB/WinRM 等协议执行与口令喷洒（原 CrackMapExec；venv 入口符号链接）",
       "version": "1.5.1",
       "platform": "linux/amd64",
-      "sha256": "5515619008bc95b129380694c5a23caf724e61bb111e403823d6a254327c454e",
+      "sha256": "052fd76ba684d5dafc8216f456f1b5b9e9cebf7291aeb90f195852597bffd4cd",
       "path": "tools/nxc",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "kali-pkg"
     },
     {
       "name": "penelope",
       "purpose": "反弹 shell handler（期 5 reverse_listen 受管进程，Python）",
       "version": "",
       "platform": "any",
-      "sha256": "b677f7e9ab8f3aad096f894956ff4571ab0d2eaca0c5ea4fc874997500d261e1",
+      "sha256": "6973f63c366be5e2b22588468a958896eb0aebb13dcdd12392c381bc03f3f2f0",
       "path": "tools/penelope.py",
       "env": "",
-      "category": "arsenal"
+      "category": "arsenal",
+      "source": "github-release"
     }
   ]
 }
