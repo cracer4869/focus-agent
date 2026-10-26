@@ -315,6 +315,9 @@ ON CONFLICT (name) DO NOTHING`,
 	if err := d.seedDefaultInterceptRulesV10(); err != nil {
 		return fmt.Errorf("seed intercept rules v10: %w", err)
 	}
+	if err := d.seedDefaultInterceptRulesV11(); err != nil {
+		return fmt.Errorf("seed intercept rules v11: %w", err)
+	}
 	return nil
 }
 
@@ -527,8 +530,8 @@ func (d *DB) seedDefaultInterceptRules() error {
 	for _, r := range rules {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action)
-VALUES ($1, true, $2, $3, $4, $5, $6, $7, false, 60, 'deny')
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, $2, $3, $4, $5, $6, $7, false, 60, 'deny')
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.priority, r.target, r.typ, r.pattern, r.action, r.message,
 		); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
@@ -576,8 +579,8 @@ func (d *DB) seedDefaultInterceptRulesV2() error {
 	for _, r := range rules {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action)
-VALUES ($1, $2, $3, 'tool_input', 'regex', $4, $5, $6, false, 60, 'deny')
-ON CONFLICT DO NOTHING`,
+SELECT ($1, $2, $3, 'tool_input', 'regex', $4, $5, $6, false, 60, 'deny')
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.enabled, r.priority, r.pattern, r.action, r.message,
 		); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
@@ -629,8 +632,8 @@ func (d *DB) seedDefaultInterceptRulesV3() error {
 	for _, r := range builtinHTTPServerRules {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
-VALUES ($1, true, 85, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, 85, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.pattern, stageShareHint,
 		); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
@@ -739,8 +742,8 @@ func (d *DB) seedDefaultInterceptRulesV6() error {
 	for _, r := range builtinProtocolClientRules {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
-VALUES ($1, true, 88, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, 88, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.pattern, protocolClientHint,
 		); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
@@ -758,8 +761,8 @@ func (d *DB) seedDefaultInterceptRulesV5() error {
 	for _, r := range builtinTunnelBinaryRules {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
-VALUES ($1, true, 87, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, 87, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.pattern, tunnelBinaryHint,
 		); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
@@ -787,8 +790,8 @@ WHERE name=$1 AND builtin=true`,
 	if n, _ := res.RowsAffected(); n == 0 {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
-VALUES ($1, true, 87, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, 87, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.pattern, tunnelBinaryHint); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
 		}
@@ -818,8 +821,8 @@ WHERE name=$1 AND builtin=true`, r.name, r.pattern)
 		if n, _ := res.RowsAffected(); n == 0 {
 			if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
-VALUES ($1, true, 86, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, 86, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 				r.name, r.pattern, lateralHint); err != nil {
 				return fmt.Errorf("rule %q: %w", r.name, err)
 			}
@@ -888,12 +891,41 @@ func (d *DB) seedDefaultInterceptRulesV4() error {
 	for _, r := range builtinLateralRules {
 		if _, err := d.Exec(`
 INSERT INTO intercept_rules(name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, builtin)
-VALUES ($1, true, 86, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
-ON CONFLICT DO NOTHING`,
+SELECT ($1, true, 86, 'tool_input', 'regex', $2, 'ask', $3, false, 60, 'deny', true)
+WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 			r.name, r.pattern, lateralHint,
 		); err != nil {
 			return fmt.Errorf("rule %q: %w", r.name, err)
 		}
 	}
 	return d.SetSetting("intercept_default_rules_v4", "done")
+}
+
+// seedDefaultInterceptRulesV11 清理重复的内置规则（幂等）。
+//
+// 根因:V5 与 V7 都会往 intercept_rules 插「裸用隧道工具」这条平台底线规则。
+// 原实现用 `INSERT ... ON CONFLICT DO NOTHING` 兜重复,但 intercept_rules 只有
+// 主键、name 上没有唯一约束——PostgreSQL 在「无冲突目标且无唯一索引」时把
+// ON CONFLICT DO NOTHING 当成普通 INSERT,一条都拦不住。V5 先插了含 suo5 的新名,
+// V7 的 UPDATE 找的是不含 suo5 的旧名(0 行),于是走自己的 INSERT 分支再插一条,
+// 新库里同名同 pattern 的规则就有两条(本机实测 id 30 与 32)。
+//
+// 修法分两层:
+//  1. 结构层(本迁移):对既有库做一次幂等去重,同名内置规则只留 id 最小的那条;
+//     用户自建规则(builtin=false)不参与,哪怕重名也不动。
+//  2. 源头层(同批改动):所有 seed 的插入从 `VALUES ... ON CONFLICT DO NOTHING`
+//     改成 `SELECT ... WHERE NOT EXISTS (...)`,让「重启不重复插入」的语义真正成立
+//     ——包括 settings 标记被清掉后重跑 seed 的情况。
+func (d *DB) seedDefaultInterceptRulesV11() error {
+	if v, _, _ := d.GetSetting("intercept_default_rules_v11"); v == "done" {
+		return nil
+	}
+	if _, err := d.Exec(`
+DELETE FROM intercept_rules a
+USING intercept_rules b
+WHERE a.builtin = true AND b.builtin = true
+  AND a.name = b.name AND a.id > b.id`); err != nil {
+		return fmt.Errorf("dedupe builtin intercept rules: %w", err)
+	}
+	return d.SetSetting("intercept_default_rules_v11", "done")
 }

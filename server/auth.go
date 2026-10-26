@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -500,8 +501,38 @@ func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
+// 登录口令尝试限速。loopback 部署下风险低，但一旦按需把监听改到 0.0.0.0
+// （反弹 shell / 隧道回连的前提），/api/auth/login 就是唯一的口令爆破面：
+// gate 的 10/min 只在外层门控启用时生效且可被绕过（直接打 /api 路径仍过门控，
+// 但定向请求 /api/auth/login 时门控只看 cookie，不数口令）。这里按来源 IP
+// 计一次尝试：10 次/分钟对正常使用足够（含成功登录），超限 429 + Retry-After。
+const (
+	authLoginRateLimit  = 10
+	authLoginRateWindow = time.Minute
+)
+
+var authLoginLimiter = &ipRateLimiter{
+	hits:   map[string][]time.Time{},
+	limit:  authLoginRateLimit,
+	window: authLoginRateWindow,
+}
+
+// authClientIP 取来源 IP（去端口）。刻意不信任 X-Forwarded-For：本服务直接
+// 对外、没有前置代理，信任该头等于把限速开关交给请求方。
+func authClientIP(r *http.Request) string {
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
 // POST /api/auth/login — validates username/password and returns a JWT.
 func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
+	if !authLoginLimiter.allow(authClientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		writeErr(w, http.StatusTooManyRequests, "登录尝试过于频繁，请 1 分钟后再试")
+		return
+	}
 	pg := s.pg(w)
 	if pg == nil {
 		return

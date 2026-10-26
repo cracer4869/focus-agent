@@ -191,9 +191,15 @@ func TestOpenTightensPermissions(t *testing.T) {
 	}
 	defer tr.Close()
 
-	for _, d := range []string{dir, "_index", "_blobs", "_ca"} {
-		if m := fileMode(t, filepath.Join(dir, d)); m != 0o700 {
-			t.Errorf("dir %s mode=%o, want 700", d, m)
+	// dir 本身也要断言（绝对路径不能当子目录名再 Join 一次，否则变成
+	// <tmp>/.../001/<tmp>/.../001 这种双层路径，stat 必然 ENOENT）。
+	for _, d := range []string{"", "_index", "_blobs", "_ca"} {
+		path := dir
+		if d != "" {
+			path = filepath.Join(dir, d)
+		}
+		if m := fileMode(t, path); m != 0o700 {
+			t.Errorf("dir %q mode=%o, want 700", path, m)
 		}
 	}
 	for _, f := range []string{"_index/index.sqlite", "_auth"} {

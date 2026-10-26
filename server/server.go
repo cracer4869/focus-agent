@@ -994,7 +994,7 @@ func (s *Server) Handler() http.Handler {
 	root.Handle("/api/", api)
 	root.HandleFunc("GET /s/{token}/{name}", s.stageDownload)
 	root.Handle("/", s.webuiHandler())
-	return s.gate.wrap(root)
+	return s.gate.wrap(withSecurityHeaders(root))
 }
 
 // SetGate 安装反测绘伪装门控(gate.go 的 NewGate 产物;nil = 直通)。
@@ -3722,15 +3722,66 @@ func (s *Server) gc(w http.ResponseWriter, r *http.Request) {
 
 // --- utils ---
 
+// cors 只对「可信来源」回 Access-Control-Allow-Origin，不再无条件回 `*`：
+// 服务绑回环时，浏览器里的任意网页都能跨源打到 127.0.0.1:8787，ACAO:* 等于
+// 把响应正文也交给它（配合 cookie 是 SameSite=Lax 才没有直接沦陷）。
+// 放行范围：回环主机任意端口（覆盖 `npm run dev -- --port 3000` 的开发场景）
+// + ARTEX_CORS_ORIGINS（逗号分隔的完整 origin）追加。
 func cors(next http.Handler) http.Handler {
+	extra := corsExtraOrigins()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if origin := r.Header.Get("Origin"); origin != "" && corsOriginAllowed(origin, extra) {
+			h := w.Header()
+			h.Set("Access-Control-Allow-Origin", origin)
+			h.Add("Vary", "Origin")
+			h.Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+			h.Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+			h.Set("Access-Control-Max-Age", "600")
+		}
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// corsOriginAllowed 判定来源是否可信：回环主机（任意端口）或显式白名单。
+func corsOriginAllowed(origin string, extra map[string]bool) bool {
+	if extra[origin] {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	switch u.Hostname() {
+	case "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	return false
+}
+
+// corsExtraOrigins 解析 ARTEX_CORS_ORIGINS（逗号分隔）。
+func corsExtraOrigins() map[string]bool {
+	out := map[string]bool{}
+	for _, o := range strings.Split(os.Getenv("ARTEX_CORS_ORIGINS"), ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out[o] = true
+		}
+	}
+	return out
+}
+
+// withSecurityHeaders 给真实响应（SPA 与 API）补基础安全头。刻意包在 gate 内层：
+// 门控的伪装响应必须逐字节固定（见 gate.go decoyPage），给它加头反而成了新指纹。
+func withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "SAMEORIGIN")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		next.ServeHTTP(w, r)
 	})
 }

@@ -92,7 +92,14 @@ command -v go >/dev/null 2>&1 || die "未检测到 Go（项目需要 Go 1.26 或
 ARTEX_GOSUMDB="${ARTEX_GOSUMDB:-sum.golang.org}"
 if [ -z "${ARTEX_BUILD_VERSION:-}" ]; then
   if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    ARTEX_BUILD_VERSION="$(git describe --tags --always --dirty)"
+    # 取 HEAD 的提交 SHA 而不是 `git describe --dirty`：改动「已写盘、尚未提交」
+    # 时 describe 报的是父提交（本机实测：源码已是 661924c 的内容，二进制却报
+    # efe97d1），运维会误判部署版本。这里用 HEAD + 显式 -dirty 后缀。
+    ARTEX_BUILD_VERSION="$(git rev-parse --short HEAD)"
+    if ! git diff --quiet HEAD -- 2>/dev/null; then
+      ARTEX_BUILD_VERSION="${ARTEX_BUILD_VERSION}-dirty"
+      warn "工作树有未提交改动，版本标记为 ${ARTEX_BUILD_VERSION}（建议先提交再构建）"
+    fi
   else
     ARTEX_BUILD_VERSION="dev"
   fi
