@@ -94,6 +94,11 @@ type Gate struct {
 	key     []byte
 	ttl     time.Duration
 	limiter *ipRateLimiter
+	// loopbackBypass 让回环来源跳过门控。门控的对手是「LAN 上扫到 8787 的扫描器」，
+	// 不是本机进程：本机 kali 用户本来就能读 data/gate.path（0600 同属主）、也能直接
+	// psql 进库，再拦一层只让「SSH 隧道转发过来的浏览器」和本地 curl 每次都要走一遍
+	// 登录。ARTEX_GATE_LOOPBACK=off 可恢复成一律门控。
+	loopbackBypass bool
 }
 
 // NewGate 按环境变量与监听地址解析门控配置;返回 (nil, nil) 表示门控关闭。
@@ -176,7 +181,18 @@ func newGate(path, token string, key []byte, ttl time.Duration) *Gate {
 		key:     key,
 		ttl:     ttl,
 		limiter: &ipRateLimiter{hits: map[string][]time.Time{}, limit: gateRateLimit, window: gateRateWindow},
+		// 默认放行回环；ARTEX_GATE_LOOPBACK=off/0/false 可关掉（例如本机不可信时）。
+		loopbackBypass: !gateLoopbackOff(),
 	}
+}
+
+// gateLoopbackOff 解析 ARTEX_GATE_LOOPBACK：只有显式写 off/0/false 才关闭回环放行。
+func gateLoopbackOff() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ARTEX_GATE_LOOPBACK"))) {
+	case "off", "0", "false", "no":
+		return true
+	}
+	return false
 }
 
 // gateEnabled 解析 ARTEX_GATE;未设置时按监听地址自动判定。explicit 表示开关
@@ -248,6 +264,12 @@ func (g *Gate) wrap(next http.Handler) http.Handler {
 		// cookie 也没有 JWT——安全靠 24 字节随机 token 路径 + 每 token 限速 +
 		// 一致性 404(stage.Manager.Download)。必须在门控【之前】豁免。
 		if strings.HasPrefix(r.URL.Path, "/s/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// 回环来源免门控(见 Gate.loopbackBypass 注释):SSH 隧道转发过来的请求
+		// RemoteAddr 就是 127.0.0.1,本地 curl 也一样。
+		if g.loopbackBypass && isLoopbackAddr(r.RemoteAddr) {
 			next.ServeHTTP(w, r)
 			return
 		}
