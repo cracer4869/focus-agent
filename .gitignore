@@ -47,6 +47,10 @@ Thumbs.db
 
 # JWT 签名密钥（运行时生成，存项目根，绝不提交）
 /jwt.key
+# 伪装门控签名密钥（绑非回环时生成：gate.path 是入口路径、gate.key 是 HMAC 密钥，
+# 两者一起等于门控凭证，绝不提交）
+/gate.key
+/gate.path
 
 # Docker 部署生成的本地环境（含密码/密钥，不提交）
 .env
