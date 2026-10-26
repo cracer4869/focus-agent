@@ -95,6 +95,7 @@ Thumbs.db
 /desktop-start.sh
 /focus-backup.sh
 /focus-restore.sh
+/focus-agent.service
 # 运行时日志（logrotate copytruncate 就地轮转，轮转产物带序号）
 /artex.log
 /artex.log.*
